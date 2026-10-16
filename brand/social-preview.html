@@ -1,0 +1,14 @@
+<!doctype html><meta charset=utf-8><link rel=stylesheet href=brand.css>
+<body style="background:var(--bg);width:1280px;height:640px;display:flex;align-items:center;justify-content:center;gap:64px;position:relative">
+<img src=avotoast.svg width=300 height=300>
+<div>
+<div class=word id=w style="font-size:132px">avotoast</div>
+<p id=t style="font:500 42px/1.25 Inter,sans-serif;color:var(--text2);margin-top:22px">Full-stack, toasted my way.</p>
+<p id=r style="font:500 26px 'JetBrains Mono',monospace;color:var(--text);margin-top:40px;display:inline-block;background:var(--accent-subtle);padding:10px 18px;border-radius:12px"></p>
+</div>
+<script>
+const q=new URLSearchParams(location.search);const repo=q.get('repo')||'avotoast';
+document.getElementById('r').textContent='neilpmas/'+repo;
+document.getElementById('w').textContent=q.get('title')||'avotoast';
+const sub=q.get('sub');if(sub)document.getElementById('t').textContent=sub;
+</script>
