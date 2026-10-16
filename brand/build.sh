@@ -11,6 +11,4 @@ mkdir -p social
 for repo in avotoast avotoast-frontend avotoast-backend; do
   shot --screenshot="$PWD/social/$repo.png" --window-size=1280,640 "file://$PWD/social-preview.html?repo=$repo"
 done
-# Bezzie is a component, so it gets its own subline instead of the Avotoast tagline.
-shot --screenshot="$PWD/social/bezzie.png" --window-size=1280,640 "file://$PWD/social-preview.html?repo=bezzie&title=bezzie&sub=BFF+auth+for+Cloudflare+Workers."
 echo "done"

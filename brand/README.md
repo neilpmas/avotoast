@@ -23,4 +23,4 @@ The PNGs are rendered from `wordmark.html` and `social-preview.html` with headle
 ./brand/build.sh
 ```
 
-Set `CHROME=/path/to/chrome` if Chrome is not at the macOS default location. To change the tagline, edit the default text in `social-preview.html`, or pass `?sub=…` as `build.sh` does for Bezzie.
+Set `CHROME=/path/to/chrome` if Chrome is not at the macOS default location. To change the tagline, edit the default text in `social-preview.html`, or pass `?sub=…` and `?title=…` to `social-preview.html`.
