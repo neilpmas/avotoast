@@ -1,0 +1,7 @@
+@font-face{font-family:'Inter';font-weight:500;src:url(fonts/inter-500.woff2) format('woff2')}
+@font-face{font-family:'Inter';font-weight:700;src:url(fonts/inter-700.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-weight:500;src:url(fonts/jetbrains-mono-500.woff2) format('woff2')}
+:root{--bg:#F4F3EF;--text:#1A1916;--text2:#5E5C57;--accent-subtle:#F5F0FF;--g1:#7C3AED;--g2:#E84D8B}
+.dark{--bg:#111110;--text:#F5F4F1;--text2:#A8A49C;--accent-subtle:#2D1A4A;--g1:#9F5FFF}
+*{box-sizing:border-box;margin:0}
+.word{font:700 1em/1 'Inter',sans-serif;letter-spacing:-0.03em;background:linear-gradient(135deg,var(--g1),var(--g2));-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.08em}
