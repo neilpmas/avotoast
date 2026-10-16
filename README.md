@@ -6,7 +6,7 @@ Architecture, decisions, and workflow guide for the template application stack. 
 
 | Repo | Purpose |
 |---|---|
-| [avotoast-planning](https://github.com/neilpmas/avotoast-planning) | This repo — architecture, decisions, workflow guide |
+| [avotoast](https://github.com/neilpmas/avotoast) | This repo — architecture, decisions, workflow guide |
 | [avotoast-frontend](https://github.com/neilpmas/avotoast-frontend) | React + Cloudflare Workers BFF |
 | [avotoast-backend](https://github.com/neilpmas/avotoast-backend) | Spring Boot backend |
 
