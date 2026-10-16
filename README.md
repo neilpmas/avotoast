@@ -1,4 +1,4 @@
-# Template Application — Planning
+# Avotoast — Planning
 
 Architecture, decisions, and workflow guide for the template application stack. Read this before working in the frontend or backend repos.
 
@@ -6,9 +6,9 @@ Architecture, decisions, and workflow guide for the template application stack. 
 
 | Repo | Purpose |
 |---|---|
-| [template-application-planning](https://github.com/neilpmas/template-application-planning) | This repo — architecture, decisions, workflow guide |
-| [template-application-frontend](https://github.com/neilpmas/template-application-frontend) | React + Cloudflare Workers BFF |
-| [template-application-backend](https://github.com/neilpmas/template-application-backend) | Spring Boot backend |
+| [avotoast-planning](https://github.com/neilpmas/avotoast-planning) | This repo — architecture, decisions, workflow guide |
+| [avotoast-frontend](https://github.com/neilpmas/avotoast-frontend) | React + Cloudflare Workers BFF |
+| [avotoast-backend](https://github.com/neilpmas/avotoast-backend) | Spring Boot backend |
 
 ---
 
@@ -16,7 +16,7 @@ Architecture, decisions, and workflow guide for the template application stack. 
 
 ```mermaid
 C4Container
-    title Template Application — Container Diagram
+    title Avotoast — Container Diagram
 
     Person(user, "User", "Web or mobile/desktop user")
 
@@ -251,13 +251,13 @@ Postgres (Docker — port 5432)
 
 2. **Backend** — copy and fill `src/main/resources/application-local.yml.example` → `application-local.yml`, then:
    ```bash
-   cd template-application-backend
+   cd avotoast-backend
    ./mvnw spring-boot:run
    ```
 
 3. **Frontend + BFF** — copy `apps/bff/.dev.vars.example` → `apps/bff/.dev.vars` and `apps/web/.env.example` → `apps/web/.env.local`, then:
    ```bash
-   cd template-application-frontend
+   cd avotoast-frontend
    npm install
    npm run dev
    ```
@@ -275,8 +275,8 @@ Do these steps before writing any feature code. The template handles all the inf
 ### 1. Clone the template repos
 
 ```bash
-gh repo create my-org/myapp-frontend --template neilpmas/template-application-frontend --public
-gh repo create my-org/myapp-backend  --template neilpmas/template-application-backend  --public
+gh repo create my-org/myapp-frontend --template neilpmas/avotoast-frontend --public
+gh repo create my-org/myapp-backend  --template neilpmas/avotoast-backend  --public
 ```
 
 ### 2. Provision infrastructure
