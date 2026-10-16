@@ -1,6 +1,55 @@
-# Avotoast — Planning
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/wordmark-dark.png">
+    <img src="brand/wordmark-light.png" alt="Avotoast" width="480">
+  </picture>
+</p>
 
-Architecture, decisions, and workflow guide for the template application stack. Read this before working in the frontend or backend repos.
+<p align="center"><b>Full-stack, toasted my way.</b><br>
+My opinionated starter: React on Cloudflare, Spring Boot on Fly.io, auth by Bezzie.</p>
+
+<p align="center"><a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7C3AED"></a></p>
+
+<p align="center">
+  <a href="https://github.com/neilpmas/avotoast">avotoast</a> ·
+  <a href="https://github.com/neilpmas/avotoast-frontend">frontend</a> ·
+  <a href="https://github.com/neilpmas/avotoast-backend">backend</a> ·
+  <a href="https://github.com/neilpmas/bezzie">bezzie (auth)</a>
+</p>
+
+Avotoast is the stack I start every new app from. The template is the toast: a plain, reliable base with auth, a database, CI and the wiring already done. Your app is the avocado you put on top. It is opinionated and built for me first. If it suits you too, take it.
+
+## What's on the toast
+
+- **Web:** React 19, Vite, Tailwind and shadcn/ui, hosted on Cloudflare Pages.
+- **BFF:** a Cloudflare Worker running [Bezzie](https://github.com/neilpmas/bezzie), so the browser gets a session cookie and JWTs never touch it.
+- **Backend:** Spring Boot 4 with Spring Modulith, on Fly.io, talking to the BFF over the Connect protocol.
+- **Data:** Neon Postgres via R2DBC, with Flyway migrations.
+- **Identity:** Auth0, one tenant shared across apps.
+- **Monorepo:** Turborepo. A React Native app is planned but not in the template yet.
+
+## Quick start
+
+```bash
+gh repo create my-org/myapp-frontend --template neilpmas/avotoast-frontend --public
+gh repo create my-org/myapp-backend  --template neilpmas/avotoast-backend  --public
+```
+
+Then follow [Local Development](#local-development) to run it, and [Starting a New App](#starting-a-new-app) to provision Neon, Auth0, Fly.io and Cloudflare.
+
+## Why these choices
+
+- **BFF for the browser:** tokens stay on the server, so there is nothing to steal from `localStorage`.
+- **Near free at rest:** about $2 a month per app, so I can run many experiments and only pay for the ones that work (see [Cost Philosophy](#cost-philosophy)).
+- **Modulith from day one:** module boundaries are enforced before the codebase grows.
+- **Connect, not gRPC-Web:** it works from a Worker using plain `fetch()` (see [Protocol Decisions](#protocol-decisions)).
+- **Same stack every time:** consistency is what makes reuse cheap.
+
+## How it's built
+
+Each app is specced before any code is written, in a private planning repo. I work with Claude to turn those specs into code, and I review and commit every change myself. The workflow is as much an experiment as the template is.
+
+---
 
 ## Repos
 
@@ -9,6 +58,7 @@ Architecture, decisions, and workflow guide for the template application stack. 
 | [avotoast](https://github.com/neilpmas/avotoast) | This repo — architecture, decisions, workflow guide |
 | [avotoast-frontend](https://github.com/neilpmas/avotoast-frontend) | React + Cloudflare Workers BFF |
 | [avotoast-backend](https://github.com/neilpmas/avotoast-backend) | Spring Boot backend |
+| [bezzie](https://github.com/neilpmas/bezzie) | BFF OAuth 2.0 auth library for Cloudflare Workers, used by the frontend's BFF |
 
 ---
 
@@ -69,13 +119,13 @@ Spring Boot validates JWTs from all clients identically — it doesn't distingui
 | Cloudflare Workers | — | BFF, auth proxy, Connect protocol → backend |
 | [Bezzie](https://github.com/neilpmas/bezzie) | — | BFF OAuth 2.0 library (open source) |
 | Cloudflare KV | — | Session storage |
-| React Native | — | iOS and Android (Auth0 RN SDK, `expo-secure-store`) |
+| React Native | — | iOS and Android (Auth0 RN SDK, `expo-secure-store`). Planned, not yet in the template |
 
 ```
 <app>/
   apps/
     web/        ← React (Cloudflare Pages)
-    mobile/     ← React Native (iOS + Android)
+    mobile/     ← React Native (iOS + Android), planned
     bff/        ← Cloudflare Workers + Bezzie
   packages/
     proto/      ← Protobuf definitions + generated TypeScript Connect client
@@ -352,8 +402,9 @@ Notes:
 
 | Trigger | Steps |
 |---|---|
-| Pull request | lint → unit tests → integration tests → build |
-| Merge to main | everything above + deploy |
+| Pull request and merge to main | lint → unit tests → integration tests → build |
+
+The template's own CI stops there. The template is never deployed, so it has no deploy step. Once your app has real infrastructure, add deploys to your app's own repo (see [Starting a New App](#starting-a-new-app), step 3). The tools I use:
 
 | Layer | Deploy tool | Target |
 |---|---|---|
