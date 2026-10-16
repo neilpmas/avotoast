@@ -360,6 +360,19 @@ Without the secret the job skips cleanly and does nothing.
 
 > **Leave blocked Dependabot PRs open.** `@dependabot recreate` can't revive a closed PR, and closing one tells Dependabot to stop proposing that version. If a PR is red because of an upstream blocker, leave it open and let the weekly nudge retry it.
 
+### 3b. Turn on dependency alerts (once the app is real)
+
+Not on in the template repos, because nothing runs from them. In your new app's repos, under **Settings → Advanced Security**, turn on **Dependabot alerts** and **Dependabot security updates**. In the **backend** repo, also turn on **Automatic dependency submission**.
+
+The backend step matters: for Maven, GitHub's dependency graph only reads versions declared in `pom.xml`. Everything Spring Boot's BOM manages, and everything pulled in transitively (Jackson, Netty, scram and so on), is invisible to it, so alerts stay at zero while real advisories sit in the resolved tree. Automatic dependency submission resolves the full tree, and the alerts then appear. The frontend needs nothing extra, since the npm lockfile is read directly.
+
+What to expect:
+- **Alerts show up, but Dependabot can't fix transitive Maven dependencies.** Its security-update jobs are limited to direct dependencies, so for a Boot-managed library the run fails and no PR is opened. That failing run is normal, not a sign something is broken.
+- **The fix is usually a Spring Boot parent bump,** which Dependabot does raise as a normal version-update PR. Merge it when it arrives.
+- **Pin a version by hand only when** the advisory is high or critical, the service is deployed, and Boot hasn't shipped a fix within a week or two. Override the Boot property (for Jackson, `jackson-bom.version`) or add a `dependencyManagement` entry, and leave a comment saying to remove it once Boot catches up.
+- **Treat IDE scanners (for example Mend) as hints, not a to-do list.** They report CVEs that GitHub and OSV don't, so check an alert against GitHub's own before acting.
+- **Private repos:** alerts, security updates and dependency submission are free but use Actions minutes. Branch protection, and so Dependabot auto-merge, needs a paid GitHub plan (Pro is enough).
+
 ### 4. Define the domain
 
 Before writing feature code:
