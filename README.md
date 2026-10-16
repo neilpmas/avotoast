@@ -373,6 +373,26 @@ What to expect:
 - **Treat IDE scanners (for example Mend) as hints, not a to-do list.** They report CVEs that GitHub and OSV don't, so check an alert against GitHub's own before acting.
 - **Private repos:** alerts, security updates and dependency submission are free but use Actions minutes. Branch protection, and so Dependabot auto-merge, needs a paid GitHub plan (Pro is enough).
 
+### 3c. Set the web app's Content Security Policy
+
+`avotoast-frontend` ships a strict starter policy in `apps/web/public/_headers`. Vite copies it into `dist/`, and Cloudflare Workers Static Assets applies it natively, so there is no code to change. This is separate from the BFF's own CSP, which only covers what the BFF itself serves (its `/auth/*` routes and so on). The static-assets Worker needs its own policy for what it renders.
+
+The starter is `default-src 'none'` with `'self'` for scripts, styles, fonts and `connect-src`, and `img-src 'self' data:`. Those values hold for any app built on this template: no inline scripts or styles, fonts self-hosted through `@fontsource-variable`, and same-origin `/api/*` and `/auth/*` calls only.
+
+**One value is yours to set: `img-src`.** The dashboard renders `user.picture` from the login provider's profile, and the host depends on the provider. With the starter, the picture is blocked until you add it, and a blocked image fails silently, so do this before deploying:
+
+| Login provider | Add to `img-src` |
+|---|---|
+| Google | `https://*.googleusercontent.com` |
+| GitHub | `https://avatars.githubusercontent.com` |
+| Email and password (Gravatar) | `https://*.gravatar.com` |
+
+Allow only the provider your Auth0 tenant actually uses, not all of them defensively.
+
+**Re-derive the other directives whenever the app changes**, rather than copying values across apps. Check the source and the built `dist/index.html` for inline `<script>`/`<style>` and for `style={{...}}`, check where fonts load from, and grep for `fetch(` and external URLs. Anything new that loads from another origin needs its own entry.
+
+**Verify against the real build, not by reading directives.** Build the app, serve `dist/` with `npx wrangler dev --assets ./dist` (it honours `_headers` the same as production), confirm the header is on the response, and watch the browser console for CSP violations while you click through the signed-in pages. The signed-in dashboard is where an avatar or a dialog would trip the policy. Reference implementation: `todo-app-frontend/apps/web/public/_headers`.
+
 ### 4. Define the domain
 
 Before writing feature code:
