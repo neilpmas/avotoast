@@ -21,7 +21,7 @@ Avotoast is the stack I start every new app from. The template is the toast: a p
 
 ## What's on the toast
 
-- **Web:** React 19, Vite, Tailwind and shadcn/ui, hosted on Cloudflare Pages.
+- **Web:** React 19, Vite, Tailwind and shadcn/ui, served from Cloudflare Workers as static assets.
 - **BFF:** a Cloudflare Worker running [Bezzie](https://github.com/neilpmas/bezzie), so the browser gets a session cookie and JWTs never touch it.
 - **Backend:** Spring Boot 4 with Spring Modulith, on Fly.io, talking to the BFF over the Connect protocol.
 - **Data:** Neon Postgres via R2DBC, with Flyway migrations.
@@ -124,7 +124,7 @@ Spring Boot validates JWTs from all clients identically — it doesn't distingui
 ```
 <app>/
   apps/
-    web/        ← React (Cloudflare Pages)
+    web/        ← React (Workers static assets)
     mobile/     ← React Native (iOS + Android), planned
     bff/        ← Cloudflare Workers + Bezzie
   packages/
@@ -137,9 +137,9 @@ Spring Boot validates JWTs from all clients identically — it doesn't distingui
 
 | Technology | Version | Purpose |
 |---|---|---|
-| Spring Boot | 4.1.0 | Core business logic |
+| Spring Boot | 4.1.1 | Core business logic |
 | Spring Modulith | 2.1.0 | Enforces module boundaries |
-| Java | 26 | Language |
+| Java | 27 | Language |
 | Maven | — | Build (wrapper included) |
 | Spring Data R2DBC | — | Reactive database access |
 | Flyway | 13.3.0 | Schema migrations |
@@ -226,7 +226,7 @@ React → BFF /auth/login → Auth0 (Authorization Code + PKCE)
                              code returned
                                   │
              BFF exchanges code for tokens → stored in Cloudflare KV
-             BFF issues HttpOnly; Secure; SameSite=Strict session cookie → React
+             BFF issues HttpOnly; Secure; SameSite=Lax session cookie → React
 ```
 
 **Per-request flow:**
@@ -273,7 +273,7 @@ Roles and permissions are defined in Auth0, included in the JWT as a `permission
 
 | Tool | Version | Install |
 |---|---|---|
-| Java | 26 | `brew install openjdk@26` or [SDKMAN](https://sdkman.io) |
+| Java | 27 | [Temurin 27](https://adoptium.net) or [SDKMAN](https://sdkman.io) |
 | Node.js | 20+ | [nodejs.org](https://nodejs.org) or `brew install node` |
 | npm | 11 | included with Node |
 | Docker | any | [Docker Desktop](https://www.docker.com/products/docker-desktop) |
@@ -294,18 +294,19 @@ Postgres (Docker — port 5432)
 
 ### Getting started (all three repos)
 
-1. **Start Postgres:**
+1. **Start Postgres** (database `template`, user `postgres`, password `password`; local development only):
    ```bash
-   docker run -d -p 5432:5432 -e POSTGRES_DB=template -e POSTGRES_PASSWORD=password postgres:17
+   cd avotoast-backend
+   docker compose up -d
    ```
 
-2. **Backend** — copy and fill `src/main/resources/application-local.yml.example` → `application-local.yml`, then:
+2. **Backend** — copy `src/main/resources/application-local.yml.example` → `application-local.yml` (gitignored; the database credentials already match the compose file, just fill in the Auth0 values), then:
    ```bash
    cd avotoast-backend
    ./mvnw spring-boot:run
    ```
 
-3. **Frontend + BFF** — copy `apps/bff/.dev.vars.example` → `apps/bff/.dev.vars` and `apps/web/.env.example` → `apps/web/.env.local`, then:
+3. **Frontend + BFF** — copy `apps/bff/.dev.vars.example` → `apps/bff/.dev.vars` (gitignored; it lists every variable the BFF needs), then:
    ```bash
    cd avotoast-frontend
    npm install
@@ -315,6 +316,8 @@ Postgres (Docker — port 5432)
 4. **Open** `http://localhost:5173`
 
 Auth0: use a real Auth0 dev tenant (free tier). Register a separate application for local dev so local and production credentials are isolated.
+
+The browser talks only to Vite on port 5173, which proxies `/auth/*` and `/api/*` to the BFF on port 8787. Keep `APP_BASE_URL` at `http://localhost:5173` so the session cookie and the Auth0 callback land on the same origin. Plain `http://localhost` works for local dev; no HTTPS or mkcert setup is needed.
 
 ---
 
@@ -336,6 +339,14 @@ In order:
 2. **Auth0** — create a Regular Web Application (for BFF) and an API (for backend)
 3. **Fly.io** — `fly launch` in the backend repo
 4. **Cloudflare** — `wrangler deploy` in the BFF app
+
+**Setup checklist (each of these has cost someone an afternoon):**
+
+- **GitHub:** enable auto-merge on each repo after creating it (`gh api repos/<owner>/<repo> --method PATCH -f allow_auto_merge=true`). The Dependabot auto-merge workflow fails silently without it.
+- **Neon:** pick the region closest to your Fly.io region (the default, US East, is wrong for a Sydney deploy; use `ap-southeast-2`). Create a `dev` branch straight after creating the project, before any migrations run, so it starts as a clean copy of `main`. Copy the **direct** connection strings (port 5432); the pooler breaks Flyway migrations.
+- **Auth0, API:** creating the API and the Regular Web Application is not enough. Under *Applications → APIs → your API → Application Access → User Delegated*, grant the web application access, or the authorize endpoint returns `Client is not authorized to access resource server`. Also enable **Allow Offline Access** on the API, otherwise Bezzie gets no refresh token and logs a warning.
+- **Auth0, application URLs:** *Allowed Callback URLs*, *Allowed Logout URLs* and *Allowed Web Origins* must exactly match `APP_BASE_URL` (the public origin, with `/auth/callback` on the callback), not the BFF's internal port. Auth0 does exact string matching.
+- **Auth0, variables:** the BFF needs `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_AUDIENCE`, `APP_BASE_URL` and `BACKEND_URL`. Empty strings in `wrangler.toml` pass validation but fail at runtime, so check all six are set.
 
 > **After first deploy, verify the Neon branch:** Neon branches can share the same database and role name, so a "Connect" string copied from the dashboard can look identical regardless of which branch it's actually for — only the compute endpoint ID differs. Read the deployed app's actual `DATABASE_URL`/`R2DBC_URL` (off the running instance, not the dashboard) and confirm the endpoint ID matches whichever branch is meant to be production. Found the hard way on the todo app: it had been running against `dev` for months while `production` sat empty and unused, undiscovered until an unrelated backup workflow started producing suspiciously small dumps.
 
@@ -442,7 +453,7 @@ The template's own CI stops there. The template is never deployed, so it has no 
 | Layer | Deploy tool | Target |
 |---|---|---|
 | Backend | `flyctl` GitHub Action | Fly.io |
-| Frontend + BFF | Wrangler GitHub Action | Cloudflare Pages + Workers |
+| Frontend + BFF | Wrangler GitHub Action | Cloudflare Workers |
 
 Flyway migrations run automatically on Spring Boot startup. If a migration fails, the deploy fails and the previous version stays live.
 
@@ -457,13 +468,17 @@ Apps are cheap at rest. Run many experiments, invest in the ones that get tracti
 | Fly.io | ~$1.94/month | Smallest machine. Java can't scale to zero — this is the floor. |
 | Neon | Free | Autosuspends after ~5 min inactivity. Cold start ~500ms. One project per app. |
 | Auth0 | Free | 7,500 active users across all apps on free tier. |
-| Cloudflare | Free | Pages + Workers free tier is generous. |
+| Cloudflare | Free | Workers free tier is generous. |
 
 4 apps ≈ $8/month. Shut down apps with no traction after a few months. Upgrade infrastructure only for the app that's working.
 
 ---
 
 ## Observability
+
+### Uptime monitoring on a scale-to-zero app
+
+A generic "ping it every 5 minutes" monitor fights this architecture twice over: every check wakes the Fly machine, so it never scales to zero, and a cold boot (about 23 seconds measured on the todo app) can outlast the monitor's default timeout, which reads a normal cold start as "down" and trains you to ignore alerts. Configure it instead with a long interval (hourly), a generous timeout (60 seconds or more, well past the cold-boot window), and an alert only after 2 or more consecutive failures. That still catches a broken deploy without defeating scale-to-zero.
 
 ### From day one (free, zero config)
 - **Fly.io built-in logs** — backend logs, always on
