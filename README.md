@@ -352,6 +352,8 @@ In order:
 
 > **After first deploy, verify the Neon branch:** Neon branches can share the same database and role name, so a "Connect" string copied from the dashboard can look identical regardless of which branch it's actually for — only the compute endpoint ID differs. Read the deployed app's actual `DATABASE_URL`/`R2DBC_URL` (off the running instance, not the dashboard) and confirm the endpoint ID matches whichever branch is meant to be production. Found the hard way on the todo app: it had been running against `dev` for months while `production` sat empty and unused, undiscovered until an unrelated backup workflow started producing suspiciously small dumps.
 
+> **Workers Builds runs from the repo root, so declare what it calls there.** Workers Builds runs `npm clean-install` and then `npx wrangler deploy --config apps/<app>/wrangler.toml` from the root. `wrangler` and `vitest` are root devDependencies in the frontend template for this reason: if `wrangler` is declared only in `apps/bff`, a dependency change can move it under `apps/bff/node_modules` and the deploy step fails with `sh: 1: wrangler: not found`. The CI `build` check doesn't exercise the deploy step, and the live site keeps serving the previous build, so nothing looks broken. Before merging a dependency change, reproduce it from a clean tree (`npm clean-install`, then `npx wrangler deploy --dry-run --config apps/bff/wrangler.toml` from the root), or watch the `Workers Builds: ...` checks on the merge commit rather than only `build`.
+
 > **Cloudflare Workers Builds naming:** if the native Git integration is connected, its auto-generated project name must match the `name` field in `wrangler.toml` *before* the first deploy that includes a route — a mismatch fails with `Can't deploy routes that are assigned to another worker.` Cloudflare's own resolution is to update `wrangler.toml` to match the Workers Builds project name (not rename the project), so set these to match from the start rather than debugging it on the first route-based deploy.
 
 ### 3. Recommended CI/CD additions (add once your app is real, not part of the template's own CI)
@@ -383,6 +385,9 @@ What to expect:
 - **Alerts show up, but Dependabot can't fix transitive Maven dependencies.** Its security-update jobs are limited to direct dependencies, so for a Boot-managed library the run fails and no PR is opened. That failing run is normal, not a sign something is broken.
 - **The fix is usually a Spring Boot parent bump,** which Dependabot does raise as a normal version-update PR. Merge it when it arrives.
 - **Pin a version by hand only when** the advisory is high or critical, the service is deployed, and Boot hasn't shipped a fix within a week or two. Override the Boot property (for Jackson, `jackson-bom.version`) or add a `dependencyManagement` entry, and leave a comment saying to remove it once Boot catches up.
+- **npm has the same limit.** Dependabot won't raise a security PR for a transitive npm package either (the job fails with `security_update_not_possible`). Fix it by hand: update the parent in the lockfile (`npm update <parent> --package-lock-only`) and raise its floor in `package.json` so it can't drift back. Example: `undici` arrives through `jsdom`, `shadcn` and `miniflare`, and bumping `jsdom` pulled in the patched `undici`.
+- **Dependabot's default of 5 open PRs per ecosystem will quietly throttle you.** One PR stuck on an upstream blocker permanently holds a slot, so the effective limit shrinks and newer versions never get a PR, with no alert. Both template `dependabot.yml` files set `open-pull-requests-limit: 20` for this reason. Keep it if you edit the file. If a known-blocked major version is holding a slot, add an `ignore` entry for it.
+- **CodeQL will flag two things on a fresh app.** `actions/missing-workflow-permissions` on any workflow without a top-level `permissions:` block: the template's `ci.yml` has one, so add `permissions: contents: read` (or tighter) to any workflow you copy in, such as `deploy.yml` and `backup.yml`. And `java/spring-disabled-csrf-protection` on the backend's `SecurityConfig`: a false positive for a stateless JWT resource server with no cookie auth, so dismiss it as a false positive (the comment in `SecurityConfig` explains why).
 - **Treat IDE scanners (for example Mend) as hints, not a to-do list.** They report CVEs that GitHub and OSV don't, so check an alert against GitHub's own before acting.
 - **Private repos:** alerts, security updates and dependency submission are free but use Actions minutes. Branch protection, and so Dependabot auto-merge, needs a paid GitHub plan (Pro is enough).
 
@@ -402,9 +407,26 @@ The starter is `default-src 'none'` with `'self'` for scripts, styles, fonts and
 
 Allow only the provider your Auth0 tenant actually uses, not all of them defensively.
 
+**Another value is yours to set: `form-action`.** The starter ships `form-action 'self' https://your-tenant.auth0.com`. Replace the placeholder with your real `AUTH0_DOMAIN`. Logout is a same-origin form POST that the BFF answers with a 302 to `https://<AUTH0_DOMAIN>/v2/logout`, and browsers enforce the submitting page's `form-action` against that redirect too. If the Auth0 origin isn't listed, the browser refuses to follow it: DevTools shows a 302, the page stays put, Auth0's SSO session is never ended, and nothing says why. `apps/web/src/headers.test.ts` reads `AUTH0_DOMAIN` from `apps/bff/wrangler.toml` and fails if `form-action` doesn't contain it, so set the domain in both places in the same change.
+
+**Decide on Cloudflare Web Analytics.** If automatic setup is on for the zone, Cloudflare injects `https://static.cloudflareinsights.com/beacon.min.js` into the HTML at the edge, and `script-src 'self'` blocks it: visits are never counted and the console shows a CSP error. Either turn automatic setup off, or add `https://static.cloudflareinsights.com` to `script-src`. The beacon reports back through the site's own `/cdn-cgi/rum`, which `connect-src 'self'` already covers. Apps on the same zone share one beacon token, so their visits land in one Web Analytics property.
+
 **Re-derive the other directives whenever the app changes**, rather than copying values across apps. Check the source and the built `dist/index.html` for inline `<script>`/`<style>` and for `style={{...}}`, check where fonts load from, and grep for `fetch(` and external URLs. Anything new that loads from another origin needs its own entry.
 
 **Verify against the real build, not by reading directives.** Build the app, serve `dist/` with `npx wrangler dev --assets ./dist` (it honours `_headers` the same as production), confirm the header is on the response, and watch the browser console for CSP violations while you click through the signed-in pages. The signed-in dashboard is where an avatar or a dialog would trip the policy. Reference implementation: `todo-app-frontend/apps/web/public/_headers`.
+
+### 3d. Optional: make Dependabot auto-merges trigger CI and deploys
+
+Dependabot auto-merge merges with `GITHUB_TOKEN`, and GitHub does not start workflow runs for events created by `GITHUB_TOKEN`. So the merge commit lands on `main` and nothing runs for it: no CI `push` run, and no deploy that hangs off CI. Found on the todo app, where nine Dependabot bumps merged and production sat on the older build with all of them undeployed. Nothing failed visibly.
+
+This matters once an app has a workflow that reacts to pushes on `main`. The template's own CI is unaffected, so this ships inert, like the nudge in 3a. Both repos' `dependabot-auto-merge.yml` use `${{ secrets.DEPENDABOT_PAT || secrets.GITHUB_TOKEN }}`: with no secret they behave as before, and with one the merge counts as a real user's push.
+
+To enable it in your new app's repos:
+1. Create a fine-grained PAT scoped to just that repo with **Pull requests: read/write** and **Contents: read/write**. The same token can serve the nudge in 3a.
+2. Store it as `DEPENDABOT_PAT` in the **Dependabot** secret store (`gh secret set DEPENDABOT_PAT --app dependabot --repo <repo>`), not only in Actions secrets. The auto-merge job runs as `dependabot[bot]`, and GitHub gives those runs Dependabot secrets only. The nudge in 3a runs on a schedule, so it needs the Actions copy. If you use both, set both.
+3. If you copy in a deploy workflow, give it `concurrency: {group: <name>, cancel-in-progress: false}`, because a batch of Dependabot merges now starts several deploys at once. Add `workflow_dispatch:` to the workflow it hangs off if you want to re-trigger it by hand (the template's `ci.yml` already has it).
+
+**The cost:** the PAT is per project and expires (the todo app used 90 days), so the template can't ship one. Put the renewal in a calendar. When it lapses, auto-merges start failing and Dependabot PRs sit open.
 
 ### 4. Define the domain
 
@@ -421,7 +443,7 @@ Before writing feature code:
 |---|---|
 | Spring Boot — unit | JUnit 5, plain unit tests for domain logic (TDD) |
 | Spring Boot — integration | Testcontainers — real Postgres, no mocks |
-| BFF (Workers) | Vitest + `@cloudflare/vitest-pool-workers` |
+| BFF (Workers) | Vitest + `@cloudflare/vitest-plugin` |
 | React | Vitest + React Testing Library |
 | E2E | Playwright |
 
