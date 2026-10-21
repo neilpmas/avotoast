@@ -160,6 +160,18 @@ Two connection strings are needed — one for R2DBC (the app) and one for JDBC (
 
 **Cost at rest:** Free tier. Neon autosuspends compute after ~5 minutes of inactivity; cold start is ~500ms. Pick the Neon region closest to your Fly.io machine.
 
+**Why Neon, and what lost:**
+
+| Option | Verdict |
+|---|---|
+| **Neon** | **Chosen.** Real Postgres, so R2DBC and Flyway work as normal. It scales to zero between requests, and the free tier covers many small projects, which suits one database per app and the [cost philosophy](#cost-philosophy). |
+| Supabase | Also managed Postgres, and a real contender. Neon won on scale-to-zero behaviour, which is what keeps cost at rest low across several apps. |
+| Fly.io Postgres | Unmanaged: backups, upgrades and failover would be on you. |
+| SQLite (with Litestream) | R2DBC support is community-only and weak. The most complete driver, `r2dbc-sqlite`, does blocking file access, so it can't be genuinely non-blocking, and SQLite's single-writer file lock is a poor fit for a reactive stack. |
+| Cloudflare D1 / Durable Objects SQLite | Reachable only from inside Workers through bindings, not from the Fly.io backend over R2DBC or JDBC. Reaching D1 from outside means its HTTP API, which drops R2DBC, Flyway and plain SQL. It would only make sense if the BFF owned the data, which is a different architecture. |
+
+Decided in the original architecture review. SQLite and D1 were re-checked on 2026-10-20 and the decision stands. Revisit it if an R2DBC SQLite driver reaches the official driver registry, or if the BFF ever takes ownership of the data.
+
 ### Authentication
 
 **[Auth0](https://auth0.com)** — identity and access management.
